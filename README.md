@@ -24,3 +24,5 @@ The underlying project is funded by the German Federal Ministry of Education and
 **Collision.ino** Collision detection (nerve model) functions; access to EEPROM
 
 **WebUI.ino** Http and websocket server; buildung the JSON object to transfer data to the UI
+
+**data/index.html** The user interface based on html and javascript

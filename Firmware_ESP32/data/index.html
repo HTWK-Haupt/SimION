@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>SimION</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+table, th, td {
+  border: 1px solid black;
+  border-collapse: collapse;
+}
+th, td {
+  padding: 10px;
+}
+.button {width: 90px;}
+</style>
+<script language="javascript" type="text/javascript">
+ 
+var url = "ws://192.168.4.1:1337/";
+var points = 0;
+
+ 
+// This is called when the page finishes loading
+function init() {
+    // Connect to WebSocket server
+    wsConnect(url);
+}
+ 
+// Call this to connect to the WebSocket server
+function wsConnect(url) {
+    
+    // Connect to WebSocket server
+    websocket = new WebSocket(url);
+    
+    // Assign callbacks
+    websocket.onopen = function(evt) { onOpen(evt) };
+    websocket.onclose = function(evt) { onClose(evt) };
+    websocket.onmessage = function(evt) { onMessage(evt) };
+    websocket.onerror = function(evt) { onError(evt) };
+}
+ 
+// Called when a WebSocket connection is established with the server
+function onOpen(evt) {
+ 
+    // Log connection state
+    console.log("Connected");
+    
+    // Enable button
+    //button.disabled = false;
+    
+    // Get the current state of the LED
+    //doSend("getLEDState");
+}
+ 
+// Called when the WebSocket connection is closed
+function onClose(evt) {
+ 
+    // Log disconnection state
+    console.log("Disconnected");
+    
+    // Disable button
+    //button.disabled = true;
+    
+    // Try to reconnect after a few seconds
+    setTimeout(function() { wsConnect(url) }, 2000);
+}
+ 
+// Called when a message is received from the server
+function onMessage(evt) {
+    console.log("Received: " + evt.data);
+    JSONobj=JSON.parse(evt.data);
+	
+	// Update values
+    document.getElementById("x").innerHTML = JSONobj.x;
+    document.getElementById("y").innerHTML = JSONobj.y;
+    document.getElementById("z").innerHTML = JSONobj.z;
+    document.getElementById("mx").innerHTML = JSONobj.mx;
+    document.getElementById("my").innerHTML = JSONobj.my;
+	document.getElementById("mz").innerHTML = JSONobj.mz;
+	document.getElementById("ttx").innerHTML = JSONobj.ttx;
+    document.getElementById("tty").innerHTML = JSONobj.tty;
+    document.getElementById("ttz").innerHTML = JSONobj.ttz;
+	document.getElementById("pt1").innerHTML = JSONobj.pt1;
+	document.getElementById("pt2").innerHTML = JSONobj.pt2;
+	document.getElementById("d").innerHTML = JSONobj.d;
+	document.getElementById("tc").innerHTML = (1000 / JSONobj.tc).toFixed(2);
+	document.getElementById("bw").innerHTML = Math.pow(2, JSONobj.bw);
+    
+	// Create and fill rows of the collision point table
+	var tbl = document.getElementById("points");
+	tbl.innerHTML = "";
+	var row = tbl.insertRow(-1);
+	var pn = row.insertCell(0);
+	pn.innerHTML = "no.";
+	var px = row.insertCell(1);
+	px.innerHTML = "x";
+	var py = row.insertCell(2);
+	py.innerHTML = "y";
+	var pz = row.insertCell(3);
+	pz.innerHTML = "z";
+	var pd = row.insertCell(4);
+	pd.innerHTML = "d_tooltip";
+	var ps = row.insertCell(5);
+	ps.innerHTML = "d_last";
+	if (tbl.rows.length - 1 < JSONobj.pts.length) {
+		for (i = 0; i < JSONobj.pts.length; i++) {
+			var row = tbl.insertRow(-1);
+			var pn = row.insertCell(0);
+			pn.innerHTML = i;
+			var px = row.insertCell(1);
+			px.innerHTML = JSONobj.pts[i][0].toFixed(2);
+			var py = row.insertCell(2);
+			py.innerHTML = JSONobj.pts[i][1].toFixed(2);
+			var pz = row.insertCell(3);
+			pz.innerHTML = JSONobj.pts[i][2].toFixed(2);
+			var pd = row.insertCell(4);
+			pd.innerHTML = JSONobj.pts[i][3].toFixed(2);
+			if (i == JSONobj.pt1) {
+				pd.bgColor = "red";
+			}
+			else if (i == JSONobj.pt2) {
+				pd.bgColor = "yellow";
+			}
+			else {
+				pd.bgColor = "green";
+			}
+			var ps = row.insertCell(5);
+			ps.innerHTML = JSONobj.pts[i][4].toFixed(2);
+		}
+	}
+}
+ 
+// Called when a WebSocket error occurs
+function onError(evt) {
+    console.log("ERROR: " + evt.data);
+}
+ 
+// Sends a messages to the server
+function setBw(expo) {
+    websocket.send(expo.toString());
+}
+function teach_point() {
+    websocket.send("teach_point");
+}
+function delete_point() {
+    websocket.send("delete_point");
+}
+
+function write_eeprom() {
+	websocket.send("write_eeprom");
+}
+
+function restore_eeprom() {
+	websocket.send("restore_eeprom");
+}
+// Call the init function as soon as the page loads
+window.addEventListener("load", init, false);
+ 
+</script>
+</head>
+<body>
+<h2>Tooltip</h2>
+<p>x = <a id="ttx"></a> mm</p>
+<p>y = <a id="tty"></a> mm</p>
+<p>z = <a id="ttz"></a> mm</p>
+
+<h2>Coordinates</h2>
+<p>x = <a id="x"></a> mm</p>
+<p>y = <a id="y"></a> mm</p>
+<p>z = <a id="z"></a> mm</p>
+<p>mx = <a id="mx"></a> mAm²</p>
+<p>my = <a id="my"></a> mAm²</p>
+<p>mz = <a id="mz"></a> mAm²</p>
+
+<h2>Sensors</h2>
+<p>update frequency = <a id="tc"></a> Hz</p>
+<p>SI72 burst width = <a id="bw"></a></p>
+<p>
+<input type="button" class="button" value="1" onClick="setBw(0)">
+<input type="button" class="button" value="2" onClick="setBw(1)">
+<input type="button" class="button" value="4" onClick="setBw(2)">
+</p>
+<p>
+<input type="button" class="button" value="8" onClick="setBw(3)">
+<input type="button" class="button" value="16" onClick="setBw(4)">
+<input type="button" class="button" value="32" onClick="setBw(5)">
+</p>
+<p>
+<input type="button" class="button" value="64" onClick="setBw(6)">
+<input type="button" class="button" value="128" onClick="setBw(7)">
+<input type="button" class="button" value="256" onClick="setBw(8)">
+</p>
+<p>
+<input type="button" class="button" value="512" onClick="setBw(9)">
+<input type="button" class="button" value="1024" onClick="setBw(10)">
+<input type="button" class="button" value="2048" onClick="setBw(11)">
+</p>
+<p>
+<input type="button" class="button" value="4096" onClick="setBw(12)">
+</p> 
+
+<h2>Collision Detection</h2>
+<p>
+<input type="button" class="button" value="Teach Point" onClick="teach_point()">
+<input type="button" class="button" value="Delete Last" onClick="delete_point()">
+pt1 = <a id="pt1"></a>  pt2 = <a id="pt2"></a>  d = <a id="d"></a>
+</p>
+<p>
+<input type="button" class="button" value="Write" onClick="write_eeprom()">
+<input type="button" class="button" value="Restore" onClick="restore_eeprom()">
+</p>
+<table id="points">
+<tr>
+	<td>no.</td><td>x</td><td>y</td><td>z</td><td>dist.</td>
+</tr>
+</table>
+
+</body>
+</html>

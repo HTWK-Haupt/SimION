@@ -6,6 +6,10 @@
 #include <WebSocketsServer.h>
 #include "norm.h"
 #include "LM_RTL_V0_4c2.h"
+#include "r_s.h" 
+#include "emg_below.h" 
+#include "emg_equal.h" 
+#include "emg_upper.h" 
 
 // Teaching point table
 #define POINTS_LEN  10

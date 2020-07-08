@@ -56,7 +56,7 @@ void collision_line_distance(void)
     distance = 2.0F / points[point_1_idx][4] * sqrt(s * (s - points[point_1_idx][3]) * (s - points[point_2_idx][3]) * (s - points[point_2_idx][4]));
   }
   else {
-    distance = 0.1F;
+    distance = 0.005F;
   }
 }
 
@@ -65,9 +65,11 @@ void collision_points_save()
 {
   int addr = 0;
   EEPROM.write(addr, 0x01);
-  EEPROM.commit();
+  //EEPROM.commit();
   addr++;
-  for (uint8_t row = 0; row < POINTS_LEN; row++) {
+  EEPROM.put(addr, points_cnt);
+  addr++;
+  for (uint8_t row = 0; row < points_cnt; row++) {
     for (uint8_t col = 0; col < POINTS_WIDTH; col++) {
       //Serial.print(points[row][col]);
       //Serial.print(" ");
@@ -76,7 +78,7 @@ void collision_points_save()
     }
     //Serial.println("");
   }
-  EEPROM.put(addr, points_cnt);
+  
   //Serial.println(points_cnt);
   //Serial.println("----------------------------------------------------");
   EEPROM.commit();
@@ -91,7 +93,9 @@ void collision_points_restore()
   addr++;
   //Serial.println(byte(marker));
   if (marker == 0x01) {
-    for (uint8_t row = 0; row < POINTS_LEN; row++) {
+    EEPROM.get(addr, points_cnt);
+    addr++;
+    for (uint8_t row = 0; row < points_cnt; row++) {
       for (uint8_t col = 0; col < POINTS_WIDTH; col++) {
         EEPROM.get(addr, points[row][col]);
         //Serial.print(points[row][col]);
@@ -100,7 +104,7 @@ void collision_points_restore()
       }
       //Serial.println("");
     }
-    EEPROM.get(addr, points_cnt);
+    
     //Serial.println(points_cnt);
     //Serial.println("----------------------------------------------------");
   }

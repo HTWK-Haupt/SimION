@@ -130,6 +130,7 @@ void web_ui_onWebSocketEvent(uint8_t client_num, WStype_t type, uint8_t * payloa
             dist[0] = points[points_cnt][0] - points[points_cnt - 1][0];
             dist[1] = points[points_cnt][1] - points[points_cnt - 1][1];
             dist[2] = points[points_cnt][2] - points[points_cnt - 1][2];
+            // TODO: prevent 0.00
             points[points_cnt][4] = b_norm(dist);
           }
           points_cnt++;

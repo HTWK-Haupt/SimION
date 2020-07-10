@@ -16,9 +16,19 @@
 #define EMG_TIME_MS 4
 #define EMG_OFFSET 0x27
 
+
+
+
+// Sensor matrix defines
+#define SENSOR_MAX  27
+// Enable sensor no. 1...16 -> D23 AND NOT D14
+#define ENABLE_SENSOR_1_16  digitalWrite(23, true); digitalWrite(14, false);
+// Enable sensor no. 17...27 -> NOT D23 AND D14
+#define ENABLE_SENSOR_17_27  digitalWrite(14, true); digitalWrite(23, false);
+
 // Teaching point table
 #define POINTS_LEN  20
-#define POINTS_WIDTH  5
+#define POINTS_WIDTH  4
 
 // I2C activity, blue onboard LED
 #define BLUE_LED_PIN     2
@@ -34,8 +44,6 @@
 
 // Measuring main loop period
 uint32_t cycle_time_ms = 0;
-uint32_t current_ms = 0;
-uint32_t last_ms = 0;
 
 // Filter parameter of Hall sensors
 // df_burstsize = 0->1 sample; 7->128 samples
@@ -43,13 +51,23 @@ uint32_t last_ms = 0;
 // df_iir = 0->FIR mode; 1->IIR mode
 uint8_t si72_param[] = {0, 9, 0};
 
+// Triggers reinitalisation of the sensor matrix and thus a new offset compensation too
+bool restart = false;
+
+// Magnetic field density in T
+uint16_t b_offset[SENSOR_MAX] = {0};
+float b_measure[SENSOR_MAX] = {0.0};
+
 // Raw coordinates of the magnetic dipols center. x,y,z in meter, mx,my,mz in Am^2
 float coord[6] = {0.001, 0.001, 0.001, 0.0, 0.0, 0.0};
+
+// Half length of the magnet in meter for the calculation of the tooltip position
+float magn_len_half = 3.0E-3F;
 
 // Actual position of the stimulation probes tip. x,y,z in meter
 float tooltip[3] = {0.0};
 
-// Teaching point table, n times x, y, z, distance to tooltip, distance to last, all in meter
+// Teaching point table, n times x, y, z, actual distance to tooltip, all in meter
 float points[POINTS_LEN][POINTS_WIDTH] = {0.0};
 // Amount of valid entries of points[][]
 uint8_t points_cnt = 0;
@@ -60,12 +78,7 @@ uint8_t point_2_idx = 0;
 // Distance in between tooltip and the line through p1 and p2 in meter
 float distance = 0.005F;
 
-// Triggers reinitalisation of the sensor matrix
-bool restart = false;
-
-
-
-
+// Catching the stimulation impulse coming from the neuromonitor
 void IRAM_ATTR trigger() {
   // TODO: parametric threshold
   //if (0.001 > distance) {
@@ -73,14 +86,13 @@ void IRAM_ATTR trigger() {
   // TODO: parametric delay
   delayMicroseconds(3000);
 
-
   for (uint16_t sig_idx = 0; sig_idx < 446; sig_idx++) {
     // TODO: parametric gain
     dacWrite(DAC_PIN, 0.2 * (emg_upper[sig_idx] - emg_upper[0]));
     delayMicroseconds(EMG_TIME_MS * 1000 / EMG_LEN);
   }
 
-  
+
   //}
 }
 
@@ -115,6 +127,15 @@ void setup()
 
 void loop()
 {
+  uint32_t current_ms = 0;
+  uint32_t last_ms = 0;
+
+  // Data aquisition ////////////////////////////////////////////////////
+
+  current_ms = millis();
+  cycle_time_ms = current_ms - last_ms;
+  last_ms = current_ms;
+
   TOGGLE_LED
   if (restart) {
     sensor_matrix_init();
@@ -130,15 +151,26 @@ void loop()
   sensor_matrix_measure();
   TOGGLE_LED
 
-  collision_point_distances();
-  collision_two_closest_points();
-  collision_line_distance();
+  // Data processing /////////////////////////////////////////////////
+
+  // Run Levenberg-Marquardt algorithym, using the last coordinates as starting point
+  LM_RTL_V0_4c2((const float*)coord, r_s, b_measure, coord);
+  //Serial.println(String(coord[0] * 1.0E3F) + String(" ") + String(coord[1] * 1.0E3F) + String(" ") + String(coord[2] * 1.0E3F));
+
+  // Calculate tooltip position
+
+  // Create normalised direction vector from magnetic moment vector
+  float mm_abs = b_norm((const float*)&coord[3]) + 1.0E-12F; // Prevent division by zero
+  tooltip[0] = -magn_len_half * coord[3] / mm_abs + coord[0];
+  tooltip[1] = -magn_len_half * coord[4] / mm_abs + coord[1];
+  tooltip[2] = -magn_len_half * coord[5] / mm_abs + coord[2];
+  //Serial.println(String(tooltip[0] * 1.0E3F) + String(" ") + String(tooltip[1] * 1.0E3F) + String(" ") + String(tooltip[2] * 1.0E3F));
+  //Serial.println("");
+
+
+  collision_calc_distance();
+
+  // Output ///////////////////////////////////////////////////////////
 
   web_ui_eval();
-
-
-
-  current_ms = millis();
-  cycle_time_ms = current_ms - last_ms;
-  last_ms = current_ms;
 }

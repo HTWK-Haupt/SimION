@@ -1,5 +1,5 @@
-// Calculate the distances from the tooltip to all collision points and populate the 4. column of the points table
-void collision_point_distances(void)
+// Calculate the distances from the tooltip to all collision points and populate the 4. column of the points table (in meter)
+void collision_calc_point_to_tooltip_distances(void)
 {
   float diff[3];
   for (uint8_t i = 0; i < points_cnt; i++)
@@ -12,52 +12,85 @@ void collision_point_distances(void)
 }
 
 // Find the two closest points and save their indices
-void collision_two_closest_points(void)
+void collision_find_two_closest_points(void)
 {
-  float dist_1 = points[0][3];
-  point_1_idx = 0;
-  point_2_idx = 0;
+  float m = 1.0;
 
-  if (points_cnt >= 2) {
-    // Search p1 from 0 to end
-    for (uint8_t i = 1; i < points_cnt; i++)
-    {
-      if (points[i][3] < dist_1) {
-        point_1_idx = i;
-        dist_1 = points[i][3];
-      }
+  // Just one single point
+  if (points_cnt == 1) {
+    point_1_idx = 0;
+    point_2_idx = 0;
+    return;
+  }
+
+  // Two or more points, find the first
+  for (uint8_t i = 0; i < points_cnt; i++)
+  {
+    if (points[i][3] < m) {
+      m = points[i][3];
+      point_1_idx = i;
     }
-    // Search p2 in the neighborhood of p1
-    if (point_1_idx == 0)
-      point_2_idx = 1;
-    else if (point_1_idx == points_cnt - 1)
-      point_2_idx = point_1_idx - 1;
-    else if (points[point_1_idx - 1][3] < points[point_1_idx + 1][3])
-      point_2_idx = point_1_idx - 1;
-    else
-      point_2_idx = point_1_idx + 1;
+  }
+
+  // Find the second, skipping the first
+  m = 1.0;
+  for (uint8_t i = 0; i < points_cnt; i++)
+  {
+    if (i == point_1_idx)
+      continue;
+    if (points[i][3] < m) {
+      m = points[i][3];
+      point_2_idx = i;
+    }
   }
 }
 
 // Calculate the distance between the tooltip and the line p1-p2
-void collision_line_distance(void)
+void collision_calc_distance(void)
 {
-  // Search the highest index of the closest points to get the right distance
-  if (point_1_idx > point_2_idx) {
-    // (a + b + c) / 2
-    float s = (points[point_1_idx][3] + points[point_2_idx][3] + points[point_1_idx][4]) / 2.0F;
-    // 2 / c * sqrt(s * (s - a) * (s - b) * (s - c))
-    distance = 2.0F / points[point_1_idx][4] * sqrt(s * (s - points[point_1_idx][3]) * (s - points[point_2_idx][3]) * (s - points[point_1_idx][4]));
-  }
-  else if (point_2_idx > point_1_idx) {
-    // (a + b + c) / 2
-    float s = (points[point_1_idx][3] + points[point_2_idx][3] + points[point_2_idx][4]) / 2.0F;
-    // 2 / c * sqrt(s * (s - a) * (s - b) * (s - c))
-    distance = 2.0F / points[point_1_idx][4] * sqrt(s * (s - points[point_1_idx][3]) * (s - points[point_2_idx][3]) * (s - points[point_2_idx][4]));
-  }
-  else {
+  // Set a default distance if there are no teached points
+  if (0 == points_cnt) {
     distance = 0.005F;
+    return;
   }
+
+  // We have at least one point, more different points or more identical points
+  collision_calc_point_to_tooltip_distances();
+  collision_find_two_closest_points();
+
+  // Points are the same (just one point or n identical teach points)
+  if (point_1_idx == point_2_idx) {
+    // Distance is a point-to-point problem and already solved
+    distance = points[point_1_idx][3];
+    return;
+  }
+
+  // We found two different points, calculating:
+  //
+  //            |vec(r_12) x ( vec(r_tt) - vec(r_1) )|
+  // distance = --------------------------------------
+  //                       |vec(r_12)|
+  //
+  // r_12 := directional vector of the straight line through point 1 and 2
+  // r_tt := position vector of the tooltip
+  // r_1 := point 1 of the straight line
+
+  float r_12[3];
+  r_12[0] = points[point_2_idx][0] - points[point_1_idx][0];
+  r_12[1] = points[point_2_idx][1] - points[point_1_idx][1];
+  r_12[2] = points[point_2_idx][2] - points[point_1_idx][2];
+
+  float diff[3];
+  diff[0] = tooltip[0] - points[point_1_idx][0];
+  diff[1] = tooltip[1] - points[point_1_idx][1];
+  diff[2] = tooltip[2] - points[point_1_idx][2];
+
+  float cross[3];
+  cross[0] = r_12[1] * diff[2] - r_12[2] * diff[1];
+  cross[1] = r_12[2] * diff[0] - r_12[0] * diff[2];
+  cross[2] = r_12[0] * diff[1] - r_12[1] * diff[0];
+
+  distance = b_norm(cross) / b_norm(r_12);
 }
 
 // Save points table to EEPROM
@@ -68,6 +101,7 @@ void collision_points_save()
   //EEPROM.commit();
   addr++;
   EEPROM.put(addr, points_cnt);
+  //Serial.println(points_cnt);
   addr++;
   for (uint8_t row = 0; row < points_cnt; row++) {
     for (uint8_t col = 0; col < POINTS_WIDTH; col++) {
@@ -78,8 +112,6 @@ void collision_points_save()
     }
     //Serial.println("");
   }
-  
-  //Serial.println(points_cnt);
   //Serial.println("----------------------------------------------------");
   EEPROM.commit();
 }
@@ -94,6 +126,7 @@ void collision_points_restore()
   //Serial.println(byte(marker));
   if (marker == 0x01) {
     EEPROM.get(addr, points_cnt);
+    //Serial.println(points_cnt);
     addr++;
     for (uint8_t row = 0; row < points_cnt; row++) {
       for (uint8_t col = 0; col < POINTS_WIDTH; col++) {
@@ -104,8 +137,6 @@ void collision_points_restore()
       }
       //Serial.println("");
     }
-    
-    //Serial.println(points_cnt);
     //Serial.println("----------------------------------------------------");
   }
 }

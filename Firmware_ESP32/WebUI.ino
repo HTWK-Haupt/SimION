@@ -3,8 +3,6 @@ WebSocketsServer webSocket = WebSocketsServer(1337);
 
 const char *ssid = "LED";
 const char *password =  "";
-const char *msg_toggle_led = "toggleLED";
-const char *msg_get_led = "getLEDState";
 char msg_buf[10];
 const int refresh_ms = 50;
 unsigned long  wait_ms = 0UL;
@@ -62,8 +60,6 @@ void web_ui_eval()
       pointstr += String(points[i][2] * 1.0E3F);
       pointstr += ",";
       pointstr += String(points[i][3] * 1.0E3F);
-      pointstr += ",";
-      pointstr += String(points[i][4] * 1.0E3F);
       pointstr += "]";
 
       if (i < points_cnt - 1)
@@ -125,14 +121,6 @@ void web_ui_onWebSocketEvent(uint8_t client_num, WStype_t type, uint8_t * payloa
           points[points_cnt][0] = tooltip[0];
           points[points_cnt][1] = tooltip[1];
           points[points_cnt][2] = tooltip[2];
-          if (points_cnt > 0) {
-            float dist[3];
-            dist[0] = points[points_cnt][0] - points[points_cnt - 1][0];
-            dist[1] = points[points_cnt][1] - points[points_cnt - 1][1];
-            dist[2] = points[points_cnt][2] - points[points_cnt - 1][2];
-            // TODO: prevent 0.00
-            points[points_cnt][4] = b_norm(dist);
-          }
           points_cnt++;
         }
       }

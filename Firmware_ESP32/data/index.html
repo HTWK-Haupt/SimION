@@ -100,8 +100,6 @@ function onMessage(evt) {
 	pz.innerHTML = "z";
 	var pd = row.insertCell(4);
 	pd.innerHTML = "d_tooltip";
-	var ps = row.insertCell(5);
-	ps.innerHTML = "d_last";
 	if (tbl.rows.length - 1 < JSONobj.pts.length) {
 		for (i = 0; i < JSONobj.pts.length; i++) {
 			var row = tbl.insertRow(-1);
@@ -124,8 +122,6 @@ function onMessage(evt) {
 			else {
 				pd.bgColor = "green";
 			}
-			var ps = row.insertCell(5);
-			ps.innerHTML = JSONobj.pts[i][4].toFixed(2);
 		}
 	}
 }
@@ -159,6 +155,9 @@ window.addEventListener("load", init, false);
 </script>
 </head>
 <body>
+<h2>Controls</h2>
+<p>EMG gain  <input id='gain' type='range' oninput='slider()'></p>
+<p>EMG delay <input id='delay' type='range' oninput='slider()'></p>
 <h2>Tooltip</h2>
 <p>x = <a id="ttx"></a> mm</p>
 <p>y = <a id="tty"></a> mm</p>
@@ -205,6 +204,7 @@ window.addEventListener("load", init, false);
 <input type="button" class="button" value="Delete Last" onClick="delete_point()">
 pt1 = <a id="pt1"></a>  pt2 = <a id="pt2"></a>  d = <a id="d"></a>
 </p>
+<p>Threshold <input id='threshold' type='range' oninput='slider()'></p>
 <p>
 <input type="button" class="button" value="Write" onClick="write_eeprom()">
 <input type="button" class="button" value="Restore" onClick="restore_eeprom()">

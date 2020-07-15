@@ -8,16 +8,8 @@
 #include "LM_RTL_V0_4c2.h"
 #include "r_s.h"
 
-// EMG signals given to the neuromonitor in dependency if the stimulation signal is below, equal or upper the threshold
-#include "emg_below.h"
-#include "emg_equal.h"
-#include "emg_upper.h"
-#define EMG_LEN 1024
-#define EMG_TIME_MS 4
-#define EMG_OFFSET 0x27
-
-
-
+// EMG signal given to the neuromonitor
+#include "emg.h"
 
 // Sensor matrix defines
 #define SENSOR_MAX  27
@@ -42,6 +34,14 @@
 // DAC output to the neuromonitor
 #define DAC_PIN   25
 
+// EMG related constants
+#define INC_SIG_NOISE 5
+#define INC_DELAY_US 300
+#define INC_THRESHOLD 0.05E-3F
+
+// Threshold to decide if magnet 1 or magnet 2 is used
+#define MAGNETIC_THRESHOLD 25.0E-3F
+
 // Measuring main loop period
 uint32_t cycle_time_ms = 0;
 
@@ -56,19 +56,19 @@ bool restart = false;
 
 // Magnetic field density in T
 uint16_t b_offset[SENSOR_MAX] = {0};
-float b_measure[SENSOR_MAX] = {0.0};
+float b_measure[SENSOR_MAX] = {0.0F};
 
 // Raw coordinates of the magnetic dipols center. x,y,z in meter, mx,my,mz in Am^2
-float coord[6] = {0.001, 0.001, 0.001, 0.0, 0.0, 0.0};
-
+float coord[6] = {0.001F, 0.001F, 0.001F, 0.0F, 0.0F, 0.0F};
+float mm_abs = 0.0F; // Absolute value of the magnetic moment in Am^2
 // Half length of the magnet in meter for the calculation of the tooltip position
-float magn_len_half = 3.0E-3F;
-
+const float magn_len_half_1 = 3.0E-3F; // about 43E-3 Am^2
+const float magn_len_half_2 = 1.5E-3F; // about 10E-3 Am^2
 // Actual position of the stimulation probes tip. x,y,z in meter
-float tooltip[3] = {0.0};
+float tooltip[3] = {0.0F};
 
 // Teaching point table, n times x, y, z, actual distance to tooltip, all in meter
-float points[POINTS_LEN][POINTS_WIDTH] = {0.0};
+float points[POINTS_LEN][POINTS_WIDTH] = {0.0F};
 // Amount of valid entries of points[][]
 uint8_t points_cnt = 0;
 // Index of the closest entry of points[][] to the tooltip
@@ -77,23 +77,39 @@ uint8_t point_1_idx = 0;
 uint8_t point_2_idx = 0;
 // Distance in between tooltip and the line through p1 and p2 in meter
 float distance = 0.005F;
+float threshold = 0.3E-3F; // Meter
+volatile int emg_signal_100 = 70;
+volatile int emg_delay_us = 3000;
+volatile int emg_noise_100 = 30;
+volatile bool emg_trigger = false;
+volatile bool emg_permanent = true;
+portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
 
 // Catching the stimulation impulse coming from the neuromonitor
 void IRAM_ATTR trigger() {
-  // TODO: parametric threshold
-  //if (0.001 > distance) {
-
-  // TODO: parametric delay
-  delayMicroseconds(3000);
-
-  for (uint16_t sig_idx = 0; sig_idx < 446; sig_idx++) {
-    // TODO: parametric gain
-    dacWrite(DAC_PIN, 0.2 * (emg_upper[sig_idx] - emg_upper[0]));
-    delayMicroseconds(EMG_TIME_MS * 1000 / EMG_LEN);
+  portENTER_CRITICAL_ISR(&mux);
+  if (emg_trigger) {
+    for (uint16_t i = 0; i < emg_delay_us / EMG_SAMPLING_RATE_US; i++) {
+      dacWrite(DAC_PIN, random(255 * emg_noise_100 / 100));
+      delayMicroseconds(EMG_SAMPLING_RATE_US);
+    }
+    for (uint16_t sig_idx = 0; sig_idx < EMG_LEN; sig_idx++) {
+      dacWrite(DAC_PIN, emg[sig_idx] * emg_signal_100 / 100 + random(255 * emg_noise_100 / 100));
+      delayMicroseconds(EMG_SAMPLING_RATE_US);
+    }
+    for (uint16_t i = 0; i < 43000 / EMG_SAMPLING_RATE_US; i++) {
+      dacWrite(DAC_PIN, random(255 * emg_noise_100 / 100));
+      delayMicroseconds(EMG_SAMPLING_RATE_US);
+    }
+    emg_trigger = false;
   }
-
-
-  //}
+  else {
+    for (uint16_t i = 0; i < 50000 / EMG_SAMPLING_RATE_US; i++) {
+      dacWrite(DAC_PIN, random(255 * emg_noise_100 / 100));
+      delayMicroseconds(EMG_SAMPLING_RATE_US);
+    }
+  }
+  portEXIT_CRITICAL_ISR(&mux);
 }
 
 void setup()
@@ -101,6 +117,8 @@ void setup()
   // Initialize EEPROM with predefined size
   // Layout: isValidMarker, points[][], points_cnt
   EEPROM.begin(POINTS_LEN * POINTS_WIDTH * sizeof(float) + 2);
+
+  randomSeed(analogRead(0));
 
   pinMode(BLUE_LED_PIN, OUTPUT);
 
@@ -127,12 +145,11 @@ void setup()
 
 void loop()
 {
-  uint32_t current_ms = 0;
-  uint32_t last_ms = 0;
+  static uint32_t last_ms = 0;
 
   // Data aquisition ////////////////////////////////////////////////////
 
-  current_ms = millis();
+  uint32_t current_ms = millis();
   cycle_time_ms = current_ms - last_ms;
   last_ms = current_ms;
 
@@ -160,15 +177,28 @@ void loop()
   // Calculate tooltip position
 
   // Create normalised direction vector from magnetic moment vector
-  float mm_abs = b_norm((const float*)&coord[3]) + 1.0E-12F; // Prevent division by zero
-  tooltip[0] = -magn_len_half * coord[3] / mm_abs + coord[0];
-  tooltip[1] = -magn_len_half * coord[4] / mm_abs + coord[1];
-  tooltip[2] = -magn_len_half * coord[5] / mm_abs + coord[2];
+  mm_abs = b_norm((const float*)&coord[3]) + 1.0E-12F; // Prevent division by zero
+  if (MAGNETIC_THRESHOLD <= mm_abs) {
+    tooltip[0] = -magn_len_half_1 * coord[3] / mm_abs + coord[0];
+    tooltip[1] = -magn_len_half_1 * coord[4] / mm_abs + coord[1];
+    tooltip[2] = -magn_len_half_1 * coord[5] / mm_abs + coord[2];
+  }
+  else {
+    tooltip[0] = -magn_len_half_2 * coord[3] / mm_abs + coord[0];
+    tooltip[1] = -magn_len_half_2 * coord[4] / mm_abs + coord[1];
+    tooltip[2] = -magn_len_half_2 * coord[5] / mm_abs + coord[2];
+  }
   //Serial.println(String(tooltip[0] * 1.0E3F) + String(" ") + String(tooltip[1] * 1.0E3F) + String(" ") + String(tooltip[2] * 1.0E3F));
   //Serial.println("");
 
 
   collision_calc_distance();
+
+  if (emg_permanent || (threshold >= distance)) {
+    portENTER_CRITICAL_ISR(&mux);
+    emg_trigger = true;
+    portEXIT_CRITICAL_ISR(&mux);
+  }
 
   // Output ///////////////////////////////////////////////////////////
 

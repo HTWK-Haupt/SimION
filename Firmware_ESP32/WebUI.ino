@@ -1,7 +1,7 @@
 AsyncWebServer server =  AsyncWebServer(80);
 WebSocketsServer webSocket = WebSocketsServer(1337);
 
-const char *ssid = "LED";
+const char *ssid = "SimION";
 const char *password =  "";
 char msg_buf[10];
 const int refresh_ms = 50;
@@ -74,6 +74,7 @@ void web_ui_eval()
               "\"mx\":" + String(coord[3] * 1.0E3F) + "," +
               "\"my\":" + String(coord[4] * 1.0E3F) + "," +
               "\"mz\":" + String(coord[5] * 1.0E3F) + "," +
+              "\"m\":" + String(mm_abs * 1.0E3F) + "," +
               "\"ttx\":" + String(tooltip[0] * 1.0E3F) + "," +
               "\"tty\":" + String(tooltip[1] * 1.0E3F) + "," +
               "\"ttz\":" + String(tooltip[2] * 1.0E3F) + "," +
@@ -81,6 +82,10 @@ void web_ui_eval()
               "\"pt1\":" + String(point_1_idx) + "," +
               "\"pt2\":" + String(point_2_idx) + "," +
               "\"d\":" + String(distance * 1.0E3F) + "," +
+              "\"signal\":" + String(emg_signal_100) + "," +
+              "\"noise\":" + String(emg_noise_100) + "," +
+              "\"delay\":" + String(float(emg_delay_us) / 1.0E3F * 2.15F /*correction caused by interrupt overhead*/) + "," +
+              "\"threshold\":" + String(threshold * 1.0E3F) + "," +
               "\"tc\":" + String(cycle_time_ms) + "," +
               "\"bw\":" + String(si72_param[1]) + "}";
 
@@ -113,7 +118,7 @@ void web_ui_onWebSocketEvent(uint8_t client_num, WStype_t type, uint8_t * payloa
       // Print out raw message
       //Serial.printf("[%u] Received text: %s\n", client_num, payload);
 
-      // Button "Teach point" was clicked
+      // Collision detection buttons
       if (strcmp((char *)payload, "teach_point") == 0)
       {
         if (points_cnt < POINTS_LEN)
@@ -124,27 +129,100 @@ void web_ui_onWebSocketEvent(uint8_t client_num, WStype_t type, uint8_t * payloa
           points_cnt++;
         }
       }
-
-      // Button "Delete Last" was clicked
       else if (strcmp((char *)payload, "delete_point") == 0)
       {
         if (points_cnt > 0)
           points_cnt--;
       }
-
-      // Button "Save" was clicked
       else if (strcmp((char *)payload, "write_eeprom") == 0)
       {
         collision_points_save();
       }
-
-      // Button "Restore" was clicked
       else if (strcmp((char *)payload, "restore_eeprom") == 0)
       {
         collision_points_restore();
       }
+      else if (strcmp((char *)payload, "inc_threshold") == 0)
+      {
+        portENTER_CRITICAL_ISR(&mux);
+        if (1.0E-3F >= threshold + INC_THRESHOLD) {
+          threshold += INC_THRESHOLD;
+        }
+        portEXIT_CRITICAL_ISR(&mux);
+      }
+      else if (strcmp((char *)payload, "dec_threshold") == 0)
+      {
+        if (0.0F <= threshold - INC_THRESHOLD) {
+          threshold -= INC_THRESHOLD;
+        }
+      }
 
-      // Bust width of SI72 was changed, Button "1" ... "4096"
+      // Control buttons
+      else if (strcmp((char *)payload, "mode0") == 0)
+      {
+        detachInterrupt(digitalPinToInterrupt(TRIGGER_PIN));
+        emg_permanent = false;
+      }
+      else if (strcmp((char *)payload, "mode1") == 0)
+      {
+        attachInterrupt(digitalPinToInterrupt(TRIGGER_PIN), trigger, RISING);
+        emg_permanent = true;
+      }
+      else if (strcmp((char *)payload, "mode2") == 0)
+      {
+        attachInterrupt(digitalPinToInterrupt(TRIGGER_PIN), trigger, RISING);
+        emg_permanent = false;
+      }
+      else if (strcmp((char *)payload, "inc_signal") == 0)
+      {
+        portENTER_CRITICAL_ISR(&mux);
+        if (100 >= emg_signal_100 + INC_SIG_NOISE && 100 >= emg_signal_100 + INC_SIG_NOISE + emg_noise_100) {
+          emg_signal_100 += INC_SIG_NOISE;
+        }
+        portEXIT_CRITICAL_ISR(&mux);
+      }
+      else if (strcmp((char *)payload, "dec_signal") == 0)
+      {
+        portENTER_CRITICAL_ISR(&mux);
+        if (0 != emg_signal_100) {
+          emg_signal_100 -= INC_SIG_NOISE;
+        }
+        portEXIT_CRITICAL_ISR(&mux);
+      }
+      else if (strcmp((char *)payload, "inc_noise") == 0)
+      {
+        portENTER_CRITICAL_ISR(&mux);
+        if (100 >= emg_noise_100 + INC_SIG_NOISE && 100 >= emg_noise_100 + INC_SIG_NOISE + emg_signal_100) {
+          emg_noise_100 += INC_SIG_NOISE;
+        }
+        portEXIT_CRITICAL_ISR(&mux);
+      }
+      else if (strcmp((char *)payload, "dec_noise") == 0)
+      {
+        portENTER_CRITICAL_ISR(&mux);
+        if (0 != emg_noise_100) {
+          emg_noise_100 -= INC_SIG_NOISE;
+        }
+        portEXIT_CRITICAL_ISR(&mux);
+      }
+      else if (strcmp((char *)payload, "inc_delay") == 0)
+      {
+        portENTER_CRITICAL_ISR(&mux);
+        if (10000 >= emg_delay_us + INC_DELAY_US) {
+          emg_delay_us += INC_DELAY_US;
+        }
+        portEXIT_CRITICAL_ISR(&mux);
+      }
+      else if (strcmp((char *)payload, "dec_delay") == 0)
+      {
+        portENTER_CRITICAL_ISR(&mux);
+        if (0 != emg_delay_us) {
+          emg_delay_us -= INC_DELAY_US;
+        }
+        portEXIT_CRITICAL_ISR(&mux);
+      }
+
+      // Burst width of SI72 was changed, Button "1" ... "4096"
       else if (strcmp((char *)payload, "0") == 0)
       {
         si72_param[1] = atoi((const char*)payload);
@@ -211,7 +289,7 @@ void web_ui_onWebSocketEvent(uint8_t client_num, WStype_t type, uint8_t * payloa
         restart = true;
       }
       break;
-      
+
     // For everything else: do nothing
     case WStype_BIN:
     case WStype_ERROR:

@@ -77,6 +77,7 @@ function onMessage(evt) {
     document.getElementById("mx").innerHTML = JSONobj.mx;
     document.getElementById("my").innerHTML = JSONobj.my;
 	document.getElementById("mz").innerHTML = JSONobj.mz;
+	document.getElementById("m").innerHTML = JSONobj.m;
 	document.getElementById("ttx").innerHTML = JSONobj.ttx;
     document.getElementById("tty").innerHTML = JSONobj.tty;
     document.getElementById("ttz").innerHTML = JSONobj.ttz;
@@ -85,7 +86,11 @@ function onMessage(evt) {
 	document.getElementById("d").innerHTML = JSONobj.d;
 	document.getElementById("tc").innerHTML = (1000 / JSONobj.tc).toFixed(2);
 	document.getElementById("bw").innerHTML = Math.pow(2, JSONobj.bw);
-    
+	document.getElementById("signal").innerHTML = JSONobj.signal;
+	document.getElementById("noise").innerHTML = JSONobj.noise;
+	document.getElementById("delay").innerHTML = JSONobj.delay;
+    document.getElementById("thr").innerHTML = JSONobj.threshold;
+	
 	// Create and fill rows of the collision point table
 	var tbl = document.getElementById("points");
 	tbl.innerHTML = "";
@@ -131,9 +136,46 @@ function onError(evt) {
     console.log("ERROR: " + evt.data);
 }
  
-// Sends a messages to the server
+// Callback functions for buttons
+function mode(m) {
+	switch (m) {
+	case 0:
+		websocket.send("mode0");
+		break;
+	case 1:
+		websocket.send("mode1");
+		break;
+	case 2:
+		websocket.send("mode2");
+		break;
+	}
+}
+function inc_signal() {
+	websocket.send("inc_signal");
+}
+function dec_signal() {
+	websocket.send("dec_signal");
+}
+function inc_delay() {
+	websocket.send("inc_delay");
+}
+function dec_delay() {
+	websocket.send("dec_delay");
+}
+function inc_noise() {
+	websocket.send("inc_noise");
+}
+function dec_noise() {
+	websocket.send("dec_noise");
+}
 function setBw(expo) {
     websocket.send(expo.toString());
+}
+function inc_threshold() {
+	websocket.send("inc_threshold");
+}
+function dec_threshold() {
+	websocket.send("dec_threshold");
 }
 function teach_point() {
     websocket.send("teach_point");
@@ -141,14 +183,13 @@ function teach_point() {
 function delete_point() {
     websocket.send("delete_point");
 }
-
 function write_eeprom() {
 	websocket.send("write_eeprom");
 }
-
 function restore_eeprom() {
 	websocket.send("restore_eeprom");
 }
+
 // Call the init function as soon as the page loads
 window.addEventListener("load", init, false);
  
@@ -156,8 +197,28 @@ window.addEventListener("load", init, false);
 </head>
 <body>
 <h2>Controls</h2>
-<p>EMG gain  <input id='gain' type='range' oninput='slider()'></p>
-<p>EMG delay <input id='delay' type='range' oninput='slider()'></p>
+<p>
+<input id="rMode0" type="radio" name="mode" onclick="mode(0)">
+<label for="rMode0">Signal output off</label><br>
+<input id="rMode1" type="radio" name="mode" checked="checked" onclick="mode(1)">
+<label for="rMode1">Signal permanent on</label><br>
+<input id="rMode2" type="radio" name="mode" onclick="mode(2)">
+<label for="rMode2">Signal by collision</label>
+<p>
+<input type="button" class="button" value="+" onClick="inc_signal()">
+<input type="button" class="button" value="-" onClick="dec_signal()">
+EMG signal strength = <a id="signal"></a> %
+</p>
+<p>
+<input type="button" class="button" value="+" onClick="inc_noise()">
+<input type="button" class="button" value="-" onClick="dec_noise()">
+EMG noise strength = <a id="noise"></a> %
+</p>
+<p>
+<input type="button" class="button" value="+" onClick="inc_delay()">
+<input type="button" class="button" value="-" onClick="dec_delay()">
+EMG delay = <a id="delay"></a> ms
+</p>
 <h2>Tooltip</h2>
 <p>x = <a id="ttx"></a> mm</p>
 <p>y = <a id="tty"></a> mm</p>
@@ -170,7 +231,7 @@ window.addEventListener("load", init, false);
 <p>mx = <a id="mx"></a> mAm²</p>
 <p>my = <a id="my"></a> mAm²</p>
 <p>mz = <a id="mz"></a> mAm²</p>
-
+<p>m = <a id="m"></a> mAm²</p>
 <h2>Sensors</h2>
 <p>update frequency = <a id="tc"></a> Hz</p>
 <p>SI72 burst width = <a id="bw"></a></p>
@@ -200,11 +261,17 @@ window.addEventListener("load", init, false);
 
 <h2>Collision Detection</h2>
 <p>
+distance to tooltip = <a id="d"></a> mm
+</p>
+<p>
+<input type="button" class="button" value="+" onClick="inc_threshold()">
+<input type="button" class="button" value="-" onClick="dec_threshold()">
+threshold = <a id="thr"></a> mm
+</p>
+<p>
 <input type="button" class="button" value="Teach Point" onClick="teach_point()">
 <input type="button" class="button" value="Delete Last" onClick="delete_point()">
-pt1 = <a id="pt1"></a>  pt2 = <a id="pt2"></a>  d = <a id="d"></a>
 </p>
-<p>Threshold <input id='threshold' type='range' oninput='slider()'></p>
 <p>
 <input type="button" class="button" value="Write" onClick="write_eeprom()">
 <input type="button" class="button" value="Restore" onClick="restore_eeprom()">
@@ -214,6 +281,8 @@ pt1 = <a id="pt1"></a>  pt2 = <a id="pt2"></a>  d = <a id="d"></a>
 	<td>no.</td><td>x</td><td>y</td><td>z</td><td>dist.</td>
 </tr>
 </table>
-
+<p>
+closest points: pt1 = <a id="pt1"></a>  pt2 = <a id="pt2"></a> 
+</p>
 </body>
 </html>

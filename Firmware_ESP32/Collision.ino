@@ -50,7 +50,9 @@ void collision_calc_distance(void)
 {
   // Set a default distance if there are no teached points
   if (0 == points_cnt) {
+    portENTER_CRITICAL_ISR(&mux);
     distance = 0.005F;
+    portEXIT_CRITICAL_ISR(&mux);
     return;
   }
 
@@ -59,9 +61,14 @@ void collision_calc_distance(void)
   collision_find_two_closest_points();
 
   // Points are the same (just one point or n identical teach points)
-  if (point_1_idx == point_2_idx) {
+  if (point_1_idx == point_2_idx || (
+        points[point_1_idx][0] == points[point_2_idx][0] &&
+        points[point_1_idx][1] == points[point_2_idx][1] &&
+        points[point_1_idx][2] == points[point_2_idx][2])) {
     // Distance is a point-to-point problem and already solved
+    portENTER_CRITICAL_ISR(&mux);
     distance = points[point_1_idx][3];
+    portEXIT_CRITICAL_ISR(&mux);
     return;
   }
 
@@ -90,7 +97,9 @@ void collision_calc_distance(void)
   cross[1] = r_12[2] * diff[0] - r_12[0] * diff[2];
   cross[2] = r_12[0] * diff[1] - r_12[1] * diff[0];
 
+  portENTER_CRITICAL_ISR(&mux);
   distance = b_norm(cross) / b_norm(r_12);
+  portEXIT_CRITICAL_ISR(&mux);
 }
 
 // Save points table to EEPROM

@@ -19,7 +19,7 @@
 #define ENABLE_SENSOR_17_27  digitalWrite(14, true); digitalWrite(23, false);
 
 // Teaching point table
-#define POINTS_LEN  20
+#define POINTS_LEN  255
 #define POINTS_WIDTH  4
 
 // I2C activity, blue onboard LED
@@ -35,7 +35,7 @@
 #define DAC_PIN   25
 
 // EMG related constants
-#define INC_SIG_NOISE 5
+#define INC_SIG_NOISE 2
 #define INC_DELAY_US 300
 #define INC_THRESHOLD 0.05E-3F
 
@@ -77,10 +77,11 @@ uint8_t point_1_idx = 0;
 uint8_t point_2_idx = 0;
 // Distance in between tooltip and the line through p1 and p2 in meter
 float distance = 0.005F;
-float threshold = 0.3E-3F; // Meter
+float threshold = 0.6E-3F; // Default trigger threshold in meter
+// Default EMG signal parameter
 volatile int emg_signal_100 = 70;
 volatile int emg_delay_us = 3000;
-volatile int emg_noise_100 = 30;
+volatile int emg_noise_100 = 6;
 volatile bool emg_trigger = false;
 volatile bool emg_permanent = true;
 portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
@@ -103,12 +104,6 @@ void IRAM_ATTR trigger() {
     }
     emg_trigger = false;
   }
-  else {
-    for (uint16_t i = 0; i < 50000 / EMG_SAMPLING_RATE_US; i++) {
-      dacWrite(DAC_PIN, random(255 * emg_noise_100 / 100));
-      delayMicroseconds(EMG_SAMPLING_RATE_US);
-    }
-  }
   portEXIT_CRITICAL_ISR(&mux);
 }
 
@@ -125,9 +120,7 @@ void setup()
   pinMode(TRIGGER_PIN, INPUT);
   attachInterrupt(digitalPinToInterrupt(TRIGGER_PIN), trigger, RISING);
 
-  // TODO: depends on proper stimulation
   pinMode(GREEN_SIGNAL_PIN, OUTPUT);
-  digitalWrite(GREEN_SIGNAL_PIN, HIGH);
 
   // Biasing DAC
   dacWrite(DAC_PIN, 0);
@@ -140,7 +133,7 @@ void setup()
   sensor_matrix_init();
   TOGGLE_LED
 
-  //collision_points_restore();
+  collision_points_restore();
 }
 
 void loop()
@@ -195,9 +188,13 @@ void loop()
   collision_calc_distance();
 
   if (emg_permanent || (threshold >= distance)) {
+    digitalWrite(GREEN_SIGNAL_PIN, HIGH);
     portENTER_CRITICAL_ISR(&mux);
     emg_trigger = true;
     portEXIT_CRITICAL_ISR(&mux);
+  }
+  else {
+    digitalWrite(GREEN_SIGNAL_PIN, LOW);
   }
 
   // Output ///////////////////////////////////////////////////////////

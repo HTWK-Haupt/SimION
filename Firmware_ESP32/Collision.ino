@@ -113,7 +113,7 @@ void collision_points_save()
   //Serial.println(points_cnt);
   addr++;
   for (uint8_t row = 0; row < points_cnt; row++) {
-    for (uint8_t col = 0; col < POINTS_WIDTH; col++) {
+    for (uint8_t col = 0; col < POINTS_WIDTH - 1; col++) {
       //Serial.print(points[row][col]);
       //Serial.print(" ");
       EEPROM.put(addr, points[row][col]);
@@ -138,7 +138,7 @@ void collision_points_restore()
     //Serial.println(points_cnt);
     addr++;
     for (uint8_t row = 0; row < points_cnt; row++) {
-      for (uint8_t col = 0; col < POINTS_WIDTH; col++) {
+      for (uint8_t col = 0; col < POINTS_WIDTH - 1; col++) {
         EEPROM.get(addr, points[row][col]);
         //Serial.print(points[row][col]);
         //Serial.print(" ");

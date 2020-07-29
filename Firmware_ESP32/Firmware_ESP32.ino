@@ -35,7 +35,7 @@
 #define DAC_PIN   25
 
 // EMG related constants
-#define INC_SIG_NOISE 2
+#define INC_SIG_NOISE 1
 #define INC_DELAY_US 300
 #define INC_THRESHOLD 0.05E-3F
 
@@ -49,7 +49,7 @@ uint32_t cycle_time_ms = 0;
 // df_burstsize = 0->1 sample; 7->128 samples
 // df_bw = 0->1 measure/sample; 12->4096 measures/sample; first measure takes 11 us, each additional 8.8 us
 // df_iir = 0->FIR mode; 1->IIR mode
-uint8_t si72_param[] = {0, 9, 0};
+uint8_t si72_param[] = {0, 6, 0};
 
 // Triggers reinitalisation of the sensor matrix and thus a new offset compensation too
 bool restart = false;
@@ -77,13 +77,14 @@ uint8_t point_1_idx = 0;
 uint8_t point_2_idx = 0;
 // Distance in between tooltip and the line through p1 and p2 in meter
 float distance = 0.005F;
-float threshold = 0.6E-3F; // Default trigger threshold in meter
+float threshold = 0.7E-3F; // Default trigger threshold in meter
 // Default EMG signal parameter
 volatile int emg_signal_100 = 70;
 volatile int emg_delay_us = 3000;
-volatile int emg_noise_100 = 6;
+volatile int emg_noise_100 = 1;
 volatile bool emg_trigger = false;
-volatile bool emg_permanent = true;
+volatile bool emg_permanent = false;
+bool emg_trigger_enable = true;
 portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
 
 // Catching the stimulation impulse coming from the neuromonitor

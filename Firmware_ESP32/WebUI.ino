@@ -67,6 +67,16 @@ void web_ui_eval()
     }
     pointstr += "]";
 
+    uint8_t mod;
+    if (!emg_trigger_enable)
+      mod = 0;
+    else {
+      if (emg_permanent)
+        mod = 1;
+      else
+        mod = 2;
+    }
+
     // JSON requires double quotes
     JSONtxt = "{\"x\":" + String(coord[0] * 1.0E3F) + "," +
               "\"y\":" + String(coord[1] * 1.0E3F) + "," +
@@ -78,6 +88,7 @@ void web_ui_eval()
               "\"ttx\":" + String(tooltip[0] * 1.0E3F) + "," +
               "\"tty\":" + String(tooltip[1] * 1.0E3F) + "," +
               "\"ttz\":" + String(tooltip[2] * 1.0E3F) + "," +
+              "\"mode\":" + String(mod) + "," +
               "\"pts\":" + pointstr + "," +
               "\"pt1\":" + String(point_1_idx) + "," +
               "\"pt2\":" + String(point_2_idx) + "," +
@@ -145,7 +156,7 @@ void web_ui_onWebSocketEvent(uint8_t client_num, WStype_t type, uint8_t * payloa
       else if (strcmp((char *)payload, "inc_threshold") == 0)
       {
         portENTER_CRITICAL_ISR(&mux);
-        if (1.0E-3F >= threshold + INC_THRESHOLD) {
+        if (2.0E-3F >= threshold + INC_THRESHOLD) {
           threshold += INC_THRESHOLD;
         }
         portEXIT_CRITICAL_ISR(&mux);
@@ -161,16 +172,19 @@ void web_ui_onWebSocketEvent(uint8_t client_num, WStype_t type, uint8_t * payloa
       else if (strcmp((char *)payload, "mode0") == 0)
       {
         detachInterrupt(digitalPinToInterrupt(TRIGGER_PIN));
+        emg_trigger_enable = false;
         emg_permanent = false;
       }
       else if (strcmp((char *)payload, "mode1") == 0)
       {
         attachInterrupt(digitalPinToInterrupt(TRIGGER_PIN), trigger, RISING);
+        emg_trigger_enable = true;
         emg_permanent = true;
       }
       else if (strcmp((char *)payload, "mode2") == 0)
       {
         attachInterrupt(digitalPinToInterrupt(TRIGGER_PIN), trigger, RISING);
+        emg_trigger_enable = true;
         emg_permanent = false;
       }
       else if (strcmp((char *)payload, "inc_signal") == 0)

@@ -91,6 +91,22 @@ function onMessage(evt) {
 	document.getElementById("delay").innerHTML = JSONobj.delay;
     document.getElementById("thr").innerHTML = JSONobj.threshold;
 	
+	// Set radio buttons
+	switch (JSONobj.mode) {
+	case 0:
+		var rMode0 = document.getElementById("rMode0");
+		rMode0.checked = true;
+		break;
+	case 1:
+		var rMode1 = document.getElementById("rMode1");
+		rMode1.checked = true;
+		break;
+	case 2:
+		var rMode2 = document.getElementById("rMode2");
+		rMode2.checked = true;
+		break;
+	}
+	
 	// Create and fill rows of the collision point table
 	var tbl = document.getElementById("points");
 	tbl.innerHTML = "";
@@ -200,7 +216,7 @@ window.addEventListener("load", init, false);
 <p>
 <input id="rMode0" type="radio" name="mode" onclick="mode(0)">
 <label for="rMode0">Signal output off</label><br>
-<input id="rMode1" type="radio" name="mode" checked="checked" onclick="mode(1)">
+<input id="rMode1" type="radio" name="mode" onclick="mode(1)">
 <label for="rMode1">Signal permanent on</label><br>
 <input id="rMode2" type="radio" name="mode" onclick="mode(2)">
 <label for="rMode2">Signal by collision</label>

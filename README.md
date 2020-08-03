@@ -4,7 +4,7 @@ In the simulation system (SimION), the position of the probe during training is 
 The firmware runs on a NodeMCU-ESP32.
 
 # Author statement
-The underlying project is funded by the German Federal Ministry of Education and Research under grant 03FH024IX5.
+The underlying project is funded by the German Federal Ministry of Education and Research under grant 03FH024IX5!
 
 # Files
 **Firmware_ESP.ino** Entry point of the program
